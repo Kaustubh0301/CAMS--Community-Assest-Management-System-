@@ -1,0 +1,201 @@
+# CAMS .gitignore
+# Covers a future Flutter frontend and a Java + Maven/Gradle (Spring Boot) backend.
+# The application projects do not exist yet; entries are here so they take effect
+# as soon as those projects are created.
+
+# ----------------------------------------------------------------------------
+# OS / editor
+# ----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+.settings/
+.project
+.classpath
+nbproject/private/
+
+# ----------------------------------------------------------------------------
+# Java / JVM
+# ----------------------------------------------------------------------------
+*.class
+*.log
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+# ----------------------------------------------------------------------------
+# Maven
+# ----------------------------------------------------------------------------
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ----------------------------------------------------------------------------
+# Gradle
+# ----------------------------------------------------------------------------
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+gradle-app.setting
+.gradletasknamecache
+
+# ----------------------------------------------------------------------------
+# Spring Boot
+# ----------------------------------------------------------------------------
+*.original
+application-local.properties
+application-local.yml
+application-local.yaml
+
+# ----------------------------------------------------------------------------
+# Flutter / Dart
+# ----------------------------------------------------------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+doc/api/
+.fvm/
+
+# Coverage
+coverage/
+*.lcov
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# ----------------------------------------------------------------------------
+# Flutter platform folders (generated)
+# ----------------------------------------------------------------------------
+# Android
+**/android/**/gradle-wrapper.jar
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+*.jks
+*.keystore
+
+# iOS / macOS
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*sync/
+**/ios/**/.sconsign.dblite
+**/ios/**/.tags*
+**/ios/**/.vagrant/
+**/ios/**/DerivedData/
+**/ios/**/Icon?
+**/ios/**/Pods/
+**/ios/**/.symlinks/
+**/ios/**/profile
+**/ios/**/xcuserdata
+**/ios/.generated/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Web / Windows / Linux build output
+**/web/build/
+**/windows/flutter/generated_plugin_registrant.*
+**/windows/flutter/generated_plugins.cmake
+**/linux/flutter/generated_plugin_registrant.*
+**/linux/flutter/generated_plugins.cmake
+
+# ----------------------------------------------------------------------------
+# Node (only if tooling/scripts introduce it)
+# ----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ----------------------------------------------------------------------------
+# Secrets / local environment — never commit
+# ----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+*.crt
+secrets.*
+*-secrets.*
+
+# PostgreSQL local credentials — the real one lives outside the repo
+# (%APPDATA%\postgresql\pgpass.conf on Windows / ~/.pgpass on Unix); these
+# patterns are defense-in-depth in case one is ever created inside the project.
+pgpass.conf
+.pgpass
+*.pgpass
+.pg_service.conf
+
+# Android signing / release credentials (*.jks/*.keystore already covered above)
+key.properties
+
+# ----------------------------------------------------------------------------
+# Build / tmp / misc
+# ----------------------------------------------------------------------------
+dist/
+out/
+tmp/
+*.tmp
+*.temp
+*.bak
+
+# Logs (in addition to the Java *.log pattern above)
+logs/
+*.log.*
+
+# ----------------------------------------------------------------------------
+# Local Claude Code / AI-assistant scratch state
+# ----------------------------------------------------------------------------
+# Keep shared .claude/ config (e.g. .gitkeep) tracked; ignore per-developer
+# local overrides and any scratch output that might land in the project.
+.claude/settings.local.json
+.claude/*.local.*
+.claude/scratch/
+.claude-scratch/
+*.claude-scratch
