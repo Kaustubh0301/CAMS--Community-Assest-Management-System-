@@ -190,12 +190,9 @@ logs/
 *.log.*
 
 # ----------------------------------------------------------------------------
-# Local Claude Code / AI-assistant scratch state
+# Local Claude Code / AI-assistant configuration — entire directory stays
+# local-only, never part of the CAMS project repository.
 # ----------------------------------------------------------------------------
-# Keep shared .claude/ config (e.g. .gitkeep) tracked; ignore per-developer
-# local overrides and any scratch output that might land in the project.
-.claude/settings.local.json
-.claude/*.local.*
-.claude/scratch/
+.claude/
 .claude-scratch/
 *.claude-scratch

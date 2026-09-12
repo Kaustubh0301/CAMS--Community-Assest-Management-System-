@@ -2,12 +2,18 @@
 
 **Status:** Requirements **BASELINED (v1.0)**. Architecture **TEAM-APPROVED
 (2026-09-04)** — decisions **AD-01 … AD-25**, recorded as ADRs 0001–0019.
-**Implementation: NOT STARTED.** Environment / prerequisite readiness **IN
-PROGRESS** — E1 (JDK 21 LTS) ✅ PASS, E2 (Maven 3.9.16) ✅ PASS, E3 (Flutter
-3.47.2 + Dart 3.13.2) ✅ PASS, E4 (Android SDK/toolchain, API 36, emulator) ✅
-PASS, E5 (PostgreSQL 17.11) ✅ PASS. Remaining: Docker decision, Git remote/
-workflow. Coding stays gated behind completion of the environment step
-(`TASKS.md` §1).
+Environment / prerequisite readiness: **E1–E7 all PASS** — E1 (JDK 21 LTS), E2
+(Maven 3.9.16), E3 (Flutter 3.47.2 + Dart 3.13.2), E4 (Android SDK/toolchain,
+API 36, emulator), E5 (PostgreSQL 17.11), E6 (Git repo on `main`, commit
+`6b689ff`), **E7 — final audit (2026-09-05): environment classified READY WITH
+NON-BLOCKING WARNINGS**. **Implementation Phase 1 — project skeleton: DONE
+(2026-09-05).** `backend/` (Spring Boot 4.1.1 / Java 21, modular-monolith
+package structure, `/health` endpoint) and `mobile/` (Flutter + Riverpod +
+Material 3 app shell) created and runnability-verified end to end; **no
+business logic, no domain tables, no CAMS feature screens** — see `TASKS.md`
+§3–§5 and `memory/MEMORY.md` for full detail. Remaining, non-blocking: Docker
+decision, GitHub remote (only if requested). Feature implementation (domain
+modules) stays gated until a specific feature task is started.
 **Last updated:** 2026-09-05
 
 This document records the high-level plan. It separates **APPROVED** decisions from
@@ -204,12 +210,61 @@ specific deployment host; Git remote.
      password and the standard, non-repo `%APPDATA%\postgresql\pgpass.conf`. One
      UAC approval was required for the service install (the user ran the
      installer directly). E1–E4 reverified unchanged.
-   - **Remaining:** (optional) Docker; Git remote + workflow; document the setup.
-5. Initialise Git repo + backend/frontend project skeletons — **only after the
-   environment readiness step (4) is complete**.
+   - **E6 ✅ PASS (2026-09-05)** — **Git repository initialised** at the CAMS
+     root, default branch **`main`** (Git 2.51.0). `.gitignore` reviewed and
+     extended *before* the first commit (PostgreSQL credential patterns, Android
+     signing files, broader secret extensions, logs/temp, local Claude Code
+     scratch state — on top of the existing Java/Flutter/Android/OS coverage).
+     Git identity resolves from the existing global config
+     (`Kaustubh <guptakaustubh03@gmail.com>`) — correct, left unchanged. Staged
+     and inspected the 38 existing project-control/doc files (no
+     passwords/tokens/keys/pgpass/binaries found) and made the first commit,
+     **`6b689ff`** — "chore: baseline CAMS project documentation". Working tree
+     clean; **no remote configured** (GitHub intentionally not set up — not
+     requested).
+   - **E7 ✅ PASS (2026-09-05) — Final environment readiness audit.**
+     Re-verified E1–E6 end-to-end with live proof, not just version strings:
+     Maven confirmed running on Java 21; `flutter doctor -v` Android toolchain
+     **[√]**; the `Medium_Phone_API_36` emulator was **booted live**
+     (WHPX-accelerated), detected by `adb devices`, then shut down cleanly;
+     PostgreSQL connectivity and the empty `cams_dev` DB/non-superuser role
+     reverified via the existing `pgpass.conf` mechanism with **no credentials
+     displayed**; Git baseline commit `6b689ff` intact, no secrets/binaries
+     tracked or present in the project tree. **Readiness decision: READY WITH
+     NON-BLOCKING WARNINGS** — (1) Visual Studio absent in `flutter doctor`
+     (correctly irrelevant, Android-only architecture), (2) `postgresql.conf`
+     `listen_addresses='*'` (mitigated by `pg_hba.conf`/no firewall rule, per
+     E5), (3) a harmless internal `.git/sg-hook-once-*` session-tooling
+     artifact (untracked). Nothing installed, nothing architectural changed.
+   - **Remaining:** (optional) Docker; GitHub remote (only if explicitly
+     requested); document the setup.
+5. ✅ **Done (2026-09-05) — Implementation Phase 1: project skeleton.**
+   `backend/` — Spring Boot **4.1.1** on **Java 21.0.12.1**, Maven; dependencies
+   limited to the approved ADR-0001 stack (web, data-jpa, security, validation,
+   actuator, Flyway, PostgreSQL driver — no Spring Modulith, no Docker,
+   no Testcontainers, no message broker); one package per approved module
+   (Auth/User, LocalBody/Ward, AssetCategory, Asset, Complaint, Maintenance,
+   Feedback, Notification, Audit, Reporting/Analytics, Media) each holding only
+   a `package-info.java` describing its future scope; deny-by-default
+   `SecurityFilterChain` permitting only `GET /health`; `application.yml` reads
+   DB credentials from `SPRING_DATASOURCE_USERNAME`/`_PASSWORD` env vars with
+   **no credential in any file**; Flyway disabled and `ddl-auto: none` (no
+   schema exists yet). Verified: `mvn compile`/`mvn test` → BUILD SUCCESS;
+   packaged jar started standalone, `GET /health` → `200 UP`, stopped cleanly.
+   `mobile/` — `flutter create --platforms android` (org `com.cams`); minimal
+   `CamsApp` shell (Material 3 + Riverpod `ProviderScope`, one screen, no
+   navigation/business screens). Verified: `flutter pub get` /
+   `analyze` (0 issues) / `test` (1/1 pass); built + installed the debug APK on
+   the `Medium_Phone_API_36` emulator, confirmed the shell rendered with no
+   crash, then cleaned up (uninstalled app, shut emulator down). **No domain
+   tables were created; `cams_dev` remains empty.** Full detail, including a
+   runtime DB-connectivity discovery that was investigated and confirmed
+   benign, is recorded in `memory/MEMORY.md`. Nothing in `docs/requirements/`
+   or `docs/decisions/` was changed.
 6. Iterate feature by feature (MVP scope first, Area 4 critical path), keeping
    tests and project-state files current.
 
-**Gate:** no application/implementation code until the **environment / prerequisite
-readiness step (§4 above / `TASKS.md` §1) is complete**. The architecture gate is
-now satisfied (step 3).
+**Gate:** the environment / prerequisite readiness step and the Phase 1
+skeleton are both complete. No **feature/business-logic** implementation
+(authentication, assets, complaints, maps, maintenance, dashboards, reports,
+etc.) has started — that is the next gated step, one feature at a time.

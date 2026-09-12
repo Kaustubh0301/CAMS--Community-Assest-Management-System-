@@ -1,0 +1,52 @@
+# CAMS backend — Phase 1 skeleton configuration.
+#
+# No credentials live in this file (SECURITY_ARCHITECTURE.md §12). The
+# database username/password are read from the standard Spring Boot
+# environment variables SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD,
+# which each developer sets locally (shell env or IDE run config) — never
+# committed. This file only supplies non-secret defaults.
+
+spring:
+  application:
+    name: cams-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cams_dev
+    username: ${SPRING_DATASOURCE_USERNAME:cams_dev}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      # Phase 1: let the application start even if the database is not
+      # reachable yet (e.g. no local credentials configured). Remove/raise
+      # this once the backend genuinely depends on a live connection.
+      initialization-fail-timeout: -1
+
+  jpa:
+    hibernate:
+      # Never auto-generate schema. Flyway migrations are the only source of
+      # schema truth once they exist (none exist yet in Phase 1).
+      ddl-auto: none
+    open-in-view: false
+
+  flyway:
+    # No migrations exist yet. Enable this when the first migration lands.
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      # Expose only the approved public liveness endpoint, at exactly the
+      # path the architecture specifies: GET /health (API_ARCHITECTURE.md §4.12).
+      base-path: /
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    # Phase 1: no live datasource credentials are configured in every
+    # environment yet, so the datasource contributor is disabled to keep
+    # /health reporting the application's own liveness. Re-enable once local
+    # DB connectivity is standard for all developers.
+    db:
+      enabled: false

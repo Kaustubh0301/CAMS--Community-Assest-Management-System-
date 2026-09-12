@@ -2,14 +2,20 @@
 
 **Status values:** NOT STARTED · IN PROGRESS · BLOCKED · DONE
 **Rule:** never mark a task DONE without corresponding code / tests / docs evidence.
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-12
 
 **Phase:** Requirements **BASELINED (v1.0)**; architecture **TEAM-APPROVED
-(2026-09-04)** — AD-01…AD-25 / ADRs 0001–0019. **Active phase: §1 Environment /
-prerequisite readiness — E1–E5 done (JDK 21, Maven, Flutter/Dart, Android SDK,
-PostgreSQL); remaining: Docker decision, Git remote/workflow.** Implementation
-sections (§3–§19) stay **GATED** until §1 is complete. **No application code
-exists.**
+(2026-09-04)** — AD-01…AD-25 / ADRs 0001–0019. Environment / prerequisite
+readiness: **E1–E7 all PASS** — final audit (E7, 2026-09-05) classifies the
+environment **READY WITH NON-BLOCKING WARNINGS** (JDK 21, Maven, Flutter/Dart,
+Android SDK + live-tested emulator, PostgreSQL, Git repo on `main` @ `6b689ff`).
+**Remaining, non-blocking:** Docker decision, GitHub remote (only if requested).
+**Implementation Phase 1 — project skeleton: DONE (2026-09-05, PASS WITH
+WARNINGS)** — `backend/` (Spring Boot 4.1.1 / Java 21) and `mobile/` (Flutter,
+Riverpod, Material 3) skeletons created and runnability-verified; **no business
+logic, no domain tables, no CAMS screens.** See §3–§5 below and
+`memory/MEMORY.md` for full detail. Sections §6–§19 remain **GATED** — no
+domain/feature implementation has started.
 
 ## 0. Project control & documentation
 - [ ] NOT STARTED — Review this control/documentation structure
@@ -127,7 +133,46 @@ Implementation §3–§19 unblocks only when this section is complete.)*
   `%APPDATA%\postgresql\pgpass.conf` — **no password recorded, displayed, or
   committed anywhere.** E1–E4 reverified unchanged throughout.
 - [ ] NOT STARTED — Decide whether to use Docker (for Testcontainers integration tests) or a local PostgreSQL for tests
-- [ ] NOT STARTED — Confirm Git workflow + remote; decide whether to use GitHub CLI
+- [x] DONE (2026-09-05) — **E6: Git repository/workflow baseline established.**
+  Git **2.51.0** confirmed. Repository initialised at `E:\EPICS 26\CAMS` (was not
+  a repo before), default branch **`main`**. `.gitignore` reviewed and extended
+  *before* the first commit — added PostgreSQL credential patterns
+  (`pgpass.conf`, `.pgpass`, `*.pgpass`), Android signing (`key.properties`),
+  broader secrets (`*.key`, `*.crt`), logs/temp (`logs/`, `*.temp`), and local
+  Claude Code scratch-state patterns (`.claude/settings.local.json`,
+  `.claude/*.local.*`) — on top of the existing Java/Maven/Gradle/Flutter/Dart/
+  Android/iOS/OS/IDE coverage. Git identity resolves from the existing **global**
+  config (`Kaustubh <guptakaustubh03@gmail.com>`) — already correct, left
+  unchanged. Staged only the 38 existing project-control/doc files (`.gitignore`,
+  `CLAUDE.md`, `PLAN.md`, `TASKS.md`, `docs/**`, `memory/MEMORY.md`,
+  `.claude/.gitkeep`); inspected the staged list and diff content before
+  committing — no passwords/tokens/keys/pgpass/binaries/installers found (one
+  filename match on "password" was `docs/decisions/0007-…-password-recovery-…`,
+  a design-decision doc, not a credential). First commit **`6b689ff`** — "chore:
+  baseline CAMS project documentation". Working tree clean; **no remote
+  configured** (GitHub setup intentionally not done — not requested). No
+  application/database code included.
+- [ ] NOT STARTED — Confirm GitHub remote + workflow (only when explicitly requested)
+- [x] DONE (2026-09-05) — **E7: Final environment readiness audit — READY WITH
+  NON-BLOCKING WARNINGS.** Full re-verification of E1–E6, live end-to-end proof
+  (not just version checks): Java 21 (Temurin) is `JAVA_HOME`, Java 24 preserved;
+  Maven 3.9.16 confirmed running on Java 21; Flutter 3.47.2 / Dart 3.13.2 healthy,
+  `flutter doctor -v` → Android toolchain **[√]**; Android SDK (`C:\Android\Sdk`,
+  platform android-36, build-tools 36.0.0) confirmed, **`Medium_Phone_API_36`
+  emulator booted live** (WHPX-accelerated), detected by `adb devices`
+  (`emulator-5554 device`) and shut down cleanly; PostgreSQL 17.11 service
+  running/automatic on port 5432, connectivity + `cams_dev` (empty, non-superuser
+  owner) reverified via the existing `pgpass.conf` mechanism with **no
+  credentials displayed**; Git repo on `main`, baseline commit `6b689ff` intact,
+  working tree has only the expected E6/E7 doc updates as uncommitted changes, no
+  secrets/binaries/installers tracked or present anywhere in the project tree.
+  **Non-blocking warnings noted:** (1) `flutter doctor`'s only red item is
+  Visual Studio — correctly irrelevant to CAMS's Android-only architecture; (2)
+  `postgresql.conf` still has the installer default `listen_addresses='*'`
+  (mitigated by `pg_hba.conf` + no firewall rule, per E5); (3) a stray
+  `.git/sg-hook-once-*` marker file was observed inside `.git/` — an internal
+  session-tooling artifact, not tracked by Git, harmless. No architecture
+  decision was changed; no dependency/tool was installed during this audit.
 - [ ] NOT STARTED — Document setup steps under `docs/`
 
 ## 2. Architecture / system design  — ✅ COMPLETE & TEAM-APPROVED (2026-09-04)
@@ -150,20 +195,76 @@ Implementation §3–§19 unblocks only when this section is complete.)*
   data-model design; decide OQ-38 residual detail then too
 
 ## 3. Project initialization
-- [ ] NOT STARTED — Initialise Git repository
-- [ ] NOT STARTED — Create backend project skeleton
-- [ ] NOT STARTED — Create frontend project skeleton
-- [ ] NOT STARTED — Wire up build / run scripts
+- [x] DONE (2026-09-05) — Initialise Git repository *(done in E6; `main`,
+  commit `6b689ff`)*
+- [x] DONE (2026-09-05) — **Create backend project skeleton.** `backend/` —
+  Spring Boot **4.1.1**, Java **21**, Maven, generated via Spring Initializr
+  then corrected (parent POM version has no `.RELEASE` suffix on Boot 4.x —
+  verified against Maven Central metadata directly). Package structure under
+  `com.cams.backend.*` with one package (+ `package-info.java` documenting its
+  approved scope/D-numbers/ADRs) per approved module: `auth`, `localbody`,
+  `assetcategory`, `asset`, `complaint`, `maintenance`, `feedback`,
+  `notification`, `audit`, `reporting`, `media`, plus `common`/`common.config`
+  for cross-cutting plumbing. **No business logic in any module.**
+- [x] DONE (2026-09-05) — **Create frontend project skeleton.** `mobile/` —
+  `flutter create --platforms android`, org `com.cams`. Minimal `CamsApp`
+  (Material 3, `ColorScheme.fromSeed`) wrapped in a Riverpod `ProviderScope`;
+  one `HomeShell` screen showing only the app name — **no CAMS screens,
+  navigation, or role routing yet.**
+- [x] DONE (2026-09-05) — Wire up build / run scripts *(none needed beyond the
+  generated Maven Wrapper (`mvnw`) and Flutter's own CLI — both verified
+  runnable; no custom scripts added, per dependency-discipline)*
 - [ ] NOT STARTED — CI configuration (if used)
 
 ## 4. Backend
-- [ ] NOT STARTED — Core application skeleton and configuration
+- [x] DONE (2026-09-05) — **Core application skeleton and configuration.**
+  Dependencies (all from the approved ADR-0001 stack, nothing extra):
+  `spring-boot-starter-{webmvc,data-jpa,security,validation,actuator}`,
+  `flyway-database-postgresql`, `postgresql` driver. Deny-by-default
+  `SecurityFilterChain` (only `GET /health` permitted; CSRF/httpBasic/formLogin
+  disabled — stateless JSON API, no browser client). `application.yml`:
+  datasource URL fixed, username/password from
+  `SPRING_DATASOURCE_USERNAME`/`_PASSWORD` env vars (**no credentials in any
+  file**); `spring.jpa.hibernate.ddl-auto: none`; `spring.flyway.enabled:
+  false` (no migrations exist yet); `/health` exposed via Actuator at the
+  approved bare path (API_ARCHITECTURE.md §4.12). Verified: `mvn compile` and
+  `mvn test` → BUILD SUCCESS (1/1 tests); packaged jar started standalone on
+  **Java 21.0.12.1**, `GET /health` → `200 {"status":"UP"}`, stopped cleanly.
+  Deliberately did **not** add Spring Modulith (thematically fitting, but not
+  in the approved dependency list). *(One notable runtime discovery,
+  investigated and confirmed benign — see `memory/MEMORY.md` "Phase 1
+  skeleton" entry: the app genuinely connects to the real `cams_dev` DB at
+  startup via the existing `pgpass.conf` mechanism, not via any credential
+  supplied by this session.)*
 - [ ] NOT STARTED — Persistence layer setup
 - [ ] NOT STARTED — Domain model (per approved requirements)
 - [ ] NOT STARTED — Error handling, validation, and logging conventions
 
 ## 5. Frontend  *(Flutter; Riverpod — AD-20/ADR-0018; fl_chart — AD-14/ADR-0015)*
-- [ ] NOT STARTED — App skeleton, navigation, role routing, theming
+- [x] DONE (2026-09-05) — **App shell skeleton + Riverpod/Material 3
+  wiring** — `mobile/lib/main.dart`, `ProviderScope` + `MaterialApp` +
+  minimal `HomeShell`. Verified: `flutter pub get`, `flutter analyze` (0
+  issues), `flutter test` (1/1 pass), built + installed debug APK on the
+  **`Medium_Phone_API_36`** emulator, confirmed the shell rendered (screenshot)
+  with no crash, then uninstalled the app and shut the emulator down cleanly.
+  **Navigation, role routing, and real theming are NOT part of this
+  skeleton** — remain NOT STARTED below.
+- [x] DONE (2026-09-12) — **D26 correction: Android `minSdk` config fix,
+  independently verified.** An independent `cams-verifier` audit found
+  `mobile/android/app/build.gradle.kts` left `minSdk = flutter.minSdkVersion`,
+  which resolves to Flutter's own default (**24**) — contradicting the
+  approved **D26** requirement (Android 8.0 / API 26+;
+  `docs/requirements/REQUIREMENTS.md` D26, NFR-COMPAT-002). Corrected to an
+  explicit `minSdk = 26` (only that one line changed). A second, independent
+  `cams-verifier` pass confirmed **26** at every layer — source
+  (`build.gradle.kts`), build output (`output-metadata.json` →
+  `minSdkVersionForDexing: 26`), and the merged manifest
+  (`processDebugManifestForPackage/AndroidManifest.xml` →
+  `android:minSdkVersion="26"`) — and re-ran `flutter analyze` (0 issues),
+  `flutter test` (1/1 pass), `flutter build apk --debug` (success), all
+  passing. **The 24-vs-26 contradiction is resolved.** No requirement,
+  architecture decision, or ADR changed; implementation correction only.
+- [ ] NOT STARTED — Navigation, role routing, real theming
 - [ ] NOT STARTED — EN/HI i18n framework + language selection
 - [ ] NOT STARTED — API client layer (JWT + refresh handling)
 - [ ] NOT STARTED — Riverpod conventions doc + reference screens
