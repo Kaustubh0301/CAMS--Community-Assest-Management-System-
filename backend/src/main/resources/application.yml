@@ -28,8 +28,9 @@ spring:
     open-in-view: false
 
   flyway:
-    # No migrations exist yet. Enable this when the first migration lands.
-    enabled: false
+    # V1__init_schema.sql (the baseline physical schema, from DATA_MODEL.md)
+    # is now the first migration, so Flyway is enabled.
+    enabled: true
 
 management:
   endpoints:

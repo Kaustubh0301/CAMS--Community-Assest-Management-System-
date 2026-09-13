@@ -440,6 +440,7 @@ is a **later** option if OQ-14 shows it is needed — not an MVP concern.
 | **OQ-37** | Rating scale | `feedback.rating.max` is config; `rating_value` stored as int. Default proposed 5. | **OPEN** |
 | **OQ-14** | Volumes | Indexing intent only; partitioning deferred (AD-23 / ADR-0019). | **OPEN** |
 | **OQ-41** | SLA target values | `sla_target` table shape only; no values. Secondary. | **OPEN** |
+| **OQ-42** | Citizen recovery request persistence | ADR-0007's staff-assisted flow (`POST /auth/citizen/recovery/request` → staff `.../resolve`) implies a pending-request record; this model defines none (`CITIZEN_RECOVERY` above is only the separate, optional recovery-code supplement). Unresolved: (A) no persisted record — manual office process — vs (B) persist requests, which requires this document to first define the entity/lifecycle/fields/retention rules. Neither chosen here. | **OPEN** (identified 2026-09-12, during the baseline-schema architecture review — not part of the 2026-09-04 sign-off) |
 | Currency | INR single-currency assumed for `repair_cost` / expenditure (student MVP, one country). Not a stated requirement — flag for confirmation. | minor |
 | Staff `login_identifier` | Mobile vs username for staff not fixed by requirements — team choice at build. | minor |
 

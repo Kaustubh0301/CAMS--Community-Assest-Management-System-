@@ -23,4 +23,5 @@ recorded in `../../PLAN.md` §4. Requirements `../requirements/REQUIREMENTS.md` 
 remains the source of truth. **Implementation has not started** — it is gated
 behind the environment / prerequisite readiness step (`../../TASKS.md` §1).
 Preserved OPEN: OQ-14, OQ-17, OQ-25, OQ-36, OQ-37, OQ-38 (residual), OQ-39
-(terminology), OQ-40, OQ-41, plus the map tile-provider decision.
+(terminology), OQ-40, OQ-41, **OQ-42** (citizen recovery request persistence —
+see `../decisions/README.md`), plus the map tile-provider decision.

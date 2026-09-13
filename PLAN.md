@@ -10,11 +10,18 @@ NON-BLOCKING WARNINGS**. **Implementation Phase 1 — project skeleton: DONE
 (2026-09-05).** `backend/` (Spring Boot 4.1.1 / Java 21, modular-monolith
 package structure, `/health` endpoint) and `mobile/` (Flutter + Riverpod +
 Material 3 app shell) created and runnability-verified end to end; **no
-business logic, no domain tables, no CAMS feature screens** — see `TASKS.md`
-§3–§5 and `memory/MEMORY.md` for full detail. Remaining, non-blocking: Docker
-decision, GitHub remote (only if requested). Feature implementation (domain
-modules) stays gated until a specific feature task is started.
-**Last updated:** 2026-09-05
+business logic, no domain tables, no CAMS feature screens** at that point —
+see `TASKS.md` §3–§5 and `memory/MEMORY.md` for full detail. **Baseline
+PostgreSQL schema (Flyway `V1__init_schema.sql`): DONE (2026-09-12)** — the
+first backend feature; physical schema from `docs/architecture/DATA_MODEL.md`,
+verified against the real `cams_dev` database — see `TASKS.md` §6 and
+`memory/MEMORY.md`. Remaining, non-blocking: Docker decision. **Git (current,
+2026-09-12):** `main` is at `d53b9fc`, synchronized with the configured
+`origin` remote — see the Git note under the E6 record in §6 below for how
+this differs from the "no remote configured" state recorded at E6/E7 time.
+Domain/business-logic implementation (Auth, Asset, Complaint, etc.) stays
+gated until a specific feature task is started.
+**Last updated:** 2026-09-12 (baseline schema task — see §6; OQ-42 recorded — see §5)
 
 This document records the high-level plan. It separates **APPROVED** decisions from
 **PROPOSED** ones. Missing details are listed as open questions, not guessed;
@@ -153,6 +160,14 @@ The architecture sign-off approved an **architectural approach** for three OQs b
 - **OQ-37** — citizen rating scale + one-time feedback-text handling
   (`feedback.rating.max` is config; default proposed 5).
 - **OQ-41** — SLA target values per priority (deferred; Secondary feature only).
+- **OQ-42** — citizen recovery request persistence. ADR-0007's approved
+  staff-assisted flow (`POST /auth/citizen/recovery/request` → staff
+  `.../resolve`) implies a pending-request record; `DATA_MODEL.md` defines
+  none. Unresolved: (A) no persisted record — the office/staff interaction is
+  a manual process — vs (B) persist requests, which requires `DATA_MODEL.md`
+  to first define the entity/lifecycle/fields/retention rules. Neither chosen;
+  ADR-0007 not reinterpreted. Must be resolved before the Auth/User module is
+  built. *(Identified 2026-09-12, baseline-schema architecture review.)*
 - **Map tile provider / licensing** (AD-10 open sub-item) — choose before the map
   screens are built.
 
@@ -221,7 +236,14 @@ specific deployment host; Git remote.
      passwords/tokens/keys/pgpass/binaries found) and made the first commit,
      **`6b689ff`** — "chore: baseline CAMS project documentation". Working tree
      clean; **no remote configured** (GitHub intentionally not set up — not
-     requested).
+     requested), as of this step (2026-09-05).
+     **Git note (current state, 2026-09-12):** this has since changed — a
+     GitHub `origin` remote is now configured and `main` is synchronized with
+     `origin/main` at `d53b9fc`. An earlier history rewrite (which removed the
+     Claude co-author attribution from early commits) replaced the local
+     history described above; the pre-rewrite history, including this
+     `6b689ff` commit, is preserved on the local branch
+     `backup-before-remove-claude`, kept intentionally as a safety branch.
    - **E7 ✅ PASS (2026-09-05) — Final environment readiness audit.**
      Re-verified E1–E6 end-to-end with live proof, not just version strings:
      Maven confirmed running on Java 21; `flutter doctor -v` Android toolchain
@@ -236,8 +258,8 @@ specific deployment host; Git remote.
      `listen_addresses='*'` (mitigated by `pg_hba.conf`/no firewall rule, per
      E5), (3) a harmless internal `.git/sg-hook-once-*` session-tooling
      artifact (untracked). Nothing installed, nothing architectural changed.
-   - **Remaining:** (optional) Docker; GitHub remote (only if explicitly
-     requested); document the setup.
+   - **Remaining:** (optional) Docker; document the setup. *(GitHub remote is
+     no longer outstanding — see the Git note above.)*
 5. ✅ **Done (2026-09-05) — Implementation Phase 1: project skeleton.**
    `backend/` — Spring Boot **4.1.1** on **Java 21.0.12.1**, Maven; dependencies
    limited to the approved ADR-0001 stack (web, data-jpa, security, validation,
@@ -263,8 +285,22 @@ specific deployment host; Git remote.
    or `docs/decisions/` was changed.
 6. Iterate feature by feature (MVP scope first, Area 4 critical path), keeping
    tests and project-state files current.
+   - ✅ **Done (2026-09-12) — Baseline PostgreSQL schema (Flyway
+     `V1__init_schema.sql`).** Physical schema translated directly from
+     `docs/architecture/DATA_MODEL.md` §4/§8: all 17 MVP tables, 14 native
+     enum types matching the approved D-number value sets exactly, the org
+     hierarchy (ADR-0004), denormalised scoping, the DATA_MODEL §11 indexes,
+     and the called-out uniqueness invariants (one-active-assignment,
+     one-feedback, one-maintenance-history per complaint). Secondary
+     (Inventory/Budget/SLA) and `citizen_recovery` (OQ-40, ADR-0007) tables
+     deliberately not created. `spring.flyway.enabled` → `true`;
+     `ddl-auto` stays `none`. Verified against the real `cams_dev` DB
+     (`mvn test`, `psql` catalog inspection, `/health` with Flyway on). See
+     `TASKS.md` §6 and `memory/MEMORY.md` for full detail. This is a schema
+     foundation only — no Auth/Asset/Complaint business logic yet.
 
 **Gate:** the environment / prerequisite readiness step and the Phase 1
-skeleton are both complete. No **feature/business-logic** implementation
-(authentication, assets, complaints, maps, maintenance, dashboards, reports,
-etc.) has started — that is the next gated step, one feature at a time.
+skeleton are both complete, and the baseline database schema now exists. No
+**feature/business-logic** implementation (authentication, assets, complaints,
+maps, maintenance, dashboards, reports, etc.) has started — that is the next
+gated step, one feature at a time.

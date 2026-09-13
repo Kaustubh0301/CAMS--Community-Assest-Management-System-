@@ -1,7 +1,7 @@
 # CAMS — Memory Index
 
 Concise index of persistent project knowledge. Keep entries short; link out, do not
-duplicate. **Last updated:** 2026-09-12
+duplicate. **Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
 
 ## Project state
 - Project: **CAMS** (Community Asset Management System), ~1-year university
@@ -12,9 +12,13 @@ duplicate. **Last updated:** 2026-09-12
   Flutter/Dart, Android SDK, PostgreSQL, Git repo baseline on `main`, final
   audit). **E7 readiness decision: READY WITH NON-BLOCKING WARNINGS**
   (2026-09-05). **Implementation Phase 1 — project skeleton: DONE
-  (2026-09-05)** — see "Phase 1 skeleton" entry below. **No feature/business
-  logic implemented yet.** Only Docker (optional) and a GitHub remote (only if
-  explicitly requested) remain outstanding, non-blocking, in `../TASKS.md` §1.
+  (2026-09-05)** — see "Phase 1 skeleton" entry below. **First backend
+  feature — baseline PostgreSQL schema: DONE (2026-09-12)** — see "Baseline
+  schema" entry below. No Auth/Asset/Complaint business logic implemented
+  yet. Only Docker (optional) remains outstanding, non-blocking, in
+  `../TASKS.md` §1. **Git (current, 2026-09-12):** `main` is at `d53b9fc`,
+  synchronized with the configured `origin` remote — see the Git note under
+  "E6 PASS" below.
 - **Requirements baseline:** `../docs/requirements/REQUIREMENTS.md` **v1.0**
   (D1–D37; register in §1). **Unchanged by the architecture work.** Open items in
   §15.3 / `../PLAN.md` §5.
@@ -185,7 +189,14 @@ duplicate. **Last updated:** 2026-09-12
   `.gitignore`; no application/database code). Staged list and diff were
   inspected before committing: no passwords/tokens/keys/pgpass/binaries staged.
   Working tree clean; **no remote configured** — GitHub setup intentionally not
-  done (not requested).
+  done (not requested), as of this step (2026-09-05).
+  **Git note (current state, 2026-09-12):** this has since changed — a GitHub
+  `origin` remote is now configured and `main` is synchronized with
+  `origin/main` at `d53b9fc`. An earlier history rewrite (which removed the
+  Claude co-author attribution from early commits) replaced the local history
+  described above; the pre-rewrite history, including this `6b689ff` commit,
+  is preserved on the local branch `backup-before-remove-claude`, kept
+  intentionally as a safety branch.
 - **E7 PASS — Final environment readiness audit (2026-09-05).** Re-verified
   E1–E6 with live evidence, not just `--version` strings: Maven confirmed
   actually running on JDK 21; `flutter doctor -v` → Android toolchain **[√]**;
@@ -204,7 +215,8 @@ duplicate. **Last updated:** 2026-09-12
 - Also present: Git 2.51, Node 24 / npm 11, Python 3.14, winget. Two AV products
   registered (Windows Defender + McAfee) — noted as the likely (not fully provable
   without admin tools) cause of the E3 `AppData` cross-volume behavior.
-- **Still missing (non-blocking):** (optional) Docker; a GitHub remote (only if explicitly requested).
+- **Still missing (non-blocking):** (optional) Docker. *(A GitHub remote is no
+  longer outstanding — see the Git note above.)*
 
 ## Phase 1 skeleton (implementation, 2026-09-05) — PASS WITH WARNINGS
 - **Backend (`backend/`):** Spring Boot **4.1.1** on **Java 21.0.12.1**
@@ -324,6 +336,163 @@ duplicate. **Last updated:** 2026-09-12
   passing. **The 24-vs-26 contradiction is resolved.** No new ADR — this is
   an implementation correction, not an architecture decision.
 
+## Baseline schema (implementation, 2026-09-12) — first backend feature, PASS
+- **File:** `backend/src/main/resources/db/migration/V1__init_schema.sql` —
+  one Flyway migration, translating `docs/architecture/DATA_MODEL.md` §4
+  (entity catalog) and §8 (enumerations) directly into PostgreSQL DDL. A
+  single baseline file was used (no concrete reason found in the approved
+  docs to split it for MVP scope).
+- **Schema objects:** all 17 MVP tables — `local_body`,
+  `village_municipality`, `ward`, `user_account`, `refresh_token`,
+  `asset_category`, `asset`, `asset_photo`, `complaint`, `complaint_photo`,
+  `complaint_status_history`, `worker_assignment`, `maintenance_history`,
+  `feedback`, `notification`, `audit_entry`, `media_object` — plus **14**
+  native PostgreSQL enum types (`role`, `account_status`, `language`,
+  `local_body_type`, `asset_status`, `asset_condition`, `complaint_status`,
+  `complaint_priority`, `complaint_event`, `complaint_photo_kind`,
+  `notification_type`, `audit_action`, `entity_type`, `media_purpose`), each
+  matching its DATA_MODEL §8 value set **verbatim** (verified by direct
+  `pg_enum` query — see below). Notably `complaint_status` is **exactly** the
+  D7 7-value set (`PENDING, ASSIGNED, IN_PROGRESS, RESOLVED, VERIFIED, CLOSED,
+  REJECTED`) — **no `RETURNED` value**, consistent with AD-05/ADR-0005;
+  rework is `complaint_status_history.event_type = 'RETURN'` +
+  `complaint.returned_count`. `asset_status`/`asset_condition` are two
+  independent enum columns on `asset` (D8/D24, never conflated).
+- **Org hierarchy (ADR-0004):** `local_body → village_municipality → ward`
+  using the working names from DATA_MODEL.md (OQ-39 terminology untouched — a
+  later rename is a follow-up migration, not this one). `asset` and
+  `complaint` both carry a **denormalised `local_body_id`** per DATA_MODEL
+  §6; `complaint` also denormalises `ward_id` from its asset.
+- **Key constraints:** `(local_body_id, name)` uniqueness on
+  `village_municipality` and `asset_category`; globally-unique `asset.
+  public_code` and `user_account.login_identifier`; **one active
+  `worker_assignment` per complaint** via a **partial unique index**
+  (`UNIQUE (complaint_id) WHERE active = true`) rather than a plain unique
+  constraint (a complaint legitimately has many *historical* — inactive —
+  assignments, only one *active* one at a time); **one `feedback` per
+  complaint** and **one `maintenance_history` per complaint** via plain
+  unique constraints on `complaint_id`. Two **circular FK pairs** — `local_
+  body.created_by → user_account.id` and `complaint.current_assignment_id →
+  worker_assignment.id` — resolved by creating the column first and adding
+  the FK via a deferred `ALTER TABLE ... ADD CONSTRAINT` once the referenced
+  table exists (standard pattern for this kind of mutual reference, not a
+  workaround for a design flaw).
+- **Indexes:** every index called out explicitly in DATA_MODEL §11 — `asset
+  (local_body_id, ward_id, asset_category_id, status)`, `asset(latitude,
+  longitude)`, `complaint(local_body_id, status, ward_id, priority)`,
+  `complaint(reported_by)`, `complaint(current_assignment_id)`,
+  `worker_assignment(worker_id, active)`, `complaint_status_history
+  (complaint_id, occurred_at)`, `notification(recipient_id, read_at)`,
+  `audit_entry(occurred_at)`, `audit_entry(entity_type, entity_id)`,
+  `audit_entry(actor_id)` — plus a modest set of additional single-column FK
+  indexes not otherwise covered (e.g. `ward.village_municipality_id`,
+  `refresh_token.user_account_id`, `asset_photo.asset_id`,
+  `complaint.asset_id`, `complaint_photo.complaint_id`, `worker_assignment.
+  complaint_id`, `maintenance_history.asset_id`), per ADR-0019's general
+  "index foreign keys and filter columns" baseline practice.
+- **Deliberately excluded** (confirmed absent by direct catalog query):
+  `citizen_recovery` (ADR-0007 / OQ-40 — the approved MVP default,
+  staff-assisted-only reset, needs no extra table; the entity is explicitly
+  documented as "not created" under that default) and every Inventory/
+  Budget/SLA Secondary-module table (`inventory_item`, `stock_movement`,
+  `expenditure_entry`, `budget_allocation`, `sla_target` — DATA_MODEL §9).
+- **Config changes:** `backend/src/main/resources/application.yml` —
+  `spring.flyway.enabled` flipped `false → true`; `spring.jpa.hibernate.
+  ddl-auto` **stays `none`** (Flyway is the only schema-authority; Hibernate
+  never creates/alters schema — verified: zero Hibernate-created sequences
+  and exactly 18 tables in `public`, i.e. the 17 domain tables +
+  `flyway_schema_history`, nothing extra). `backend/src/main/resources/
+  db/migration/README.md` rewritten to describe the new baseline (no longer
+  says "no migrations exist yet").
+- **Implementation-style choices made where the docs were silent** (flagged
+  for review, not silent deviations from an approved decision):
+  - **UUID primary keys**, server-generated via `gen_random_uuid()` (built
+    into PostgreSQL core since v13 — confirmed no `pgcrypto` extension is
+    needed on this PostgreSQL 17.11 instance). Matches API_ARCHITECTURE §2's
+    "IDs: Opaque strings (UUID proposed)".
+  - **Native PostgreSQL `ENUM` types** (not `varchar` + `CHECK`) for every
+    DATA_MODEL §8 enumeration — makes the approved value sets directly
+    inspectable via `\dT`/`pg_enum`, matching how this task's own
+    verification step was framed.
+  - **`NUMERIC(12,2)`** for `maintenance_history.repair_cost` (single-
+    currency INR assumed per DATA_MODEL §13's flagged, not-yet-confirmed,
+    currency note).
+  - `ward.ward_number` stored as `VARCHAR(20)` (not integer), since
+    DATA_MODEL only says "number?" without a type, and ward numbers may be
+    alphanumeric (e.g. "7A").
+  - `maintenance_history.completion_photo_ids` (DATA_MODEL: "references to
+    COMPLAINT_PHOTO of kind WORKER_COMPLETION") modelled as a `UUID[]` array
+    column rather than a join table, since the conceptual model describes it
+    as a small reference list attribute on the row, not a first-class
+    relation.
+  - `notification.body_params` (DATA_MODEL: "small structured payload for
+    localisation") modelled as `JSONB`.
+  - `feedback.rating_value` has only a `CHECK (rating_value >= 1)` — **no
+    upper bound** — because `feedback.rating.max` is application config and
+    its value is **OQ-37, still OPEN** (default only *proposed* as 5); baking
+    an unapproved number into a DB constraint was avoided per CLAUDE.md rule
+    7 ("do not invent requirements").
+  - `user_account.local_body_id` nullability has **no CHECK constraint**
+    coupling it to `role` (e.g. forcing NULL only for ADMIN), because
+    DATA_MODEL §6 itself flags that ADMIN-is-always-global rule as
+    "PROPOSED" / a future per-body-admin refinement is possible — encoding
+    the current default as a hard DB constraint would foreclose that
+    documented flexibility.
+  - Row-count invariants that need cross-row logic and can't be expressed as
+    a simple constraint (≤5 `asset_photo` rows per asset; ≥1
+    `WORKER_COMPLETION` `complaint_photo` before a complaint can `RESOLVE`)
+    are **not** enforced by DB triggers — left to the application/service
+    layer, consistent with SECURITY_ARCHITECTURE §7–§8 describing these as
+    Media/Complaint-service-enforced rules, not schema rules.
+  - `updated_at` columns (`asset.updated_at`, `complaint.updated_at`) are
+    **not** auto-maintained by a DB trigger; the application sets them, as
+    with the rest of the write path.
+- **Verification evidence (against the real local `cams_dev` PostgreSQL 17.11
+  database, via the existing `pgpass.conf` mechanism — no credentials
+  handled, displayed, or logged by this session):**
+  - `mvn compile` → BUILD SUCCESS (no errors).
+  - `mvn test` → BUILD SUCCESS, 1/1 tests pass; Spring Boot context startup
+    log shows Flyway creating `flyway_schema_history`, then "Migrating schema
+    "public" to version "1 - init schema"" → "Successfully applied 1
+    migration". A **second** `mvn test` run shows Flyway "Successfully
+    validated 1 migration" → "Schema \"public\" is up to date. No migration
+    necessary." (repeatable/idempotent, no re-apply).
+  - `SELECT version, description, success FROM flyway_schema_history;` →
+    `1 | init schema | t`.
+  - `psql \dt` → all 17 domain tables + `flyway_schema_history` (18 total).
+  - `psql \dT` + a `pg_type`/`pg_enum` query → all 14 enum types present with
+    their exact approved value lists (spot-checked every one, not just
+    `complaint_status`).
+  - An `information_schema` FK query → all 37 expected foreign keys present,
+    including both deferred/circular ones.
+  - A `pg_constraint` query (unique + check constraints) and `\di` (all
+    indexes) → every constraint and index described above present, including
+    the partial unique index on `worker_assignment`.
+  - `SELECT table_name FROM information_schema.tables WHERE table_name IN
+    ('citizen_recovery','inventory_item','stock_movement',
+    'expenditure_entry','budget_allocation','sla_target')` → **0 rows**
+    (confirmed absent).
+  - `SELECT sequence_name FROM information_schema.sequences` → 0 rows (no
+    Hibernate-created sequences; UUID PKs use `gen_random_uuid()`, not
+    sequences); table count in `public` = 18 exactly (no Hibernate schema
+    drift given `ddl-auto: none`).
+  - Packaged jar started standalone (`java -jar target/backend-0.0.1-
+    SNAPSHOT.jar`); log shows Flyway "Successfully validated 1 migration" /
+    "up to date"; `GET /health` → `HTTP 200
+    {"groups":["liveness","readiness"],"status":"UP"}`; process stopped
+    cleanly afterward (Windows needed `taskkill /F` for the detached
+    `java.exe`, as in the Phase 1 skeleton entry — not an app-level issue).
+- **No conflicts found** between DATA_MODEL.md and any other approved
+  document (SYSTEM_ARCHITECTURE, the ADRs, SECURITY_ARCHITECTURE) that would
+  have required stopping and reporting instead of implementing — the
+  documents were consistent for everything this migration covers.
+- **Scope note:** this task is schema-only. No JPA entities, repositories,
+  services, controllers, or Auth/RBAC logic were added — `backend/src/main/
+  java` module packages are still each just a `package-info.java` (Phase 1
+  skeleton state unchanged on the Java side). `docs/requirements/` and
+  `docs/decisions/` were **not** touched (out of scope for an implementation
+  task per the task instructions).
+
 ## Where to look
 - `../CLAUDE.md` — how to operate on this project.
 - `../PLAN.md` — plan; proposed vs approved decisions.
@@ -333,8 +502,10 @@ duplicate. **Last updated:** 2026-09-12
 - `../docs/architecture/` — **architecture v1.0 (TEAM-APPROVED)**: SYSTEM (+ §1A AD
   register), DATA_MODEL, COMPLAINT_STATE_MACHINE, API, SECURITY.
 - `../docs/decisions/` — **ADRs 0001–0019 (ACCEPTED)**; index + OPEN-map in its README.
-- `../docs/database/` — schema & migrations *(to be filled from DATA_MODEL.md,
-  after the environment step)*.
+- `../docs/database/` — schema & migrations narrative *(not yet filled in as a
+  doc; the physical schema itself now lives in
+  `../backend/src/main/resources/db/migration/V1__init_schema.sql` — see
+  "Baseline schema" entry above)*.
 - `../docs/api/` — API reference *(to be filled; contract in architecture/API_ARCHITECTURE.md)*.
 - `../docs/testing/` — test strategy *(to be filled)*.
 
@@ -351,6 +522,14 @@ duplicate. **Last updated:** 2026-09-12
 - **OQ-36** — university DSN3099 milestones/rubric/deadlines — **PENDING faculty**; no dates invented.
 - **OQ-37** — citizen rating scale (`feedback.rating.max` config; default proposed 5) + one-time feedback text.
 - **OQ-41** — SLA target values per priority — deferred (Secondary only).
+- **OQ-42** — citizen recovery request persistence — ADR-0007's staff-assisted
+  flow (`POST /auth/citizen/recovery/request` → staff `.../resolve`) implies a
+  pending-request record; DATA_MODEL.md defines no such entity. Unresolved: (A)
+  no persisted record (manual office process) vs (B) persist requests (needs
+  DATA_MODEL.md to define the entity first). Neither chosen; ADR-0007 not
+  reinterpreted. Resolve before the Auth/User module is built. Found
+  2026-09-12 during the independent `cams-architecture-reviewer` pass on the
+  baseline schema.
 - **Map tile provider / licensing** — AD-10 open sub-item; choose before map screens.
 - Non-requirements gaps: environment/prerequisite readiness (active phase),
   specific deployment host, Git remote, team/process — `../PLAN.md` §4–§6.

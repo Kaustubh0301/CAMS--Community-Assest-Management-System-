@@ -2,20 +2,25 @@
 
 **Status values:** NOT STARTED · IN PROGRESS · BLOCKED · DONE
 **Rule:** never mark a task DONE without corresponding code / tests / docs evidence.
-**Last updated:** 2026-09-12
+**Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
 
 **Phase:** Requirements **BASELINED (v1.0)**; architecture **TEAM-APPROVED
 (2026-09-04)** — AD-01…AD-25 / ADRs 0001–0019. Environment / prerequisite
 readiness: **E1–E7 all PASS** — final audit (E7, 2026-09-05) classifies the
 environment **READY WITH NON-BLOCKING WARNINGS** (JDK 21, Maven, Flutter/Dart,
-Android SDK + live-tested emulator, PostgreSQL, Git repo on `main` @ `6b689ff`).
-**Remaining, non-blocking:** Docker decision, GitHub remote (only if requested).
+Android SDK + live-tested emulator, PostgreSQL, Git repo baseline established
+at E6/E7 time). **Remaining, non-blocking:** Docker decision. **Current Git
+state (2026-09-12):** `main` is at `d53b9fc`, synchronized with the configured
+`origin` remote — see the Git note under E6 in §1 below.
 **Implementation Phase 1 — project skeleton: DONE (2026-09-05, PASS WITH
 WARNINGS)** — `backend/` (Spring Boot 4.1.1 / Java 21) and `mobile/` (Flutter,
 Riverpod, Material 3) skeletons created and runnability-verified; **no business
 logic, no domain tables, no CAMS screens.** See §3–§5 below and
-`memory/MEMORY.md` for full detail. Sections §6–§19 remain **GATED** — no
-domain/feature implementation has started.
+`memory/MEMORY.md` for full detail. **First backend feature — baseline
+PostgreSQL schema (Flyway `V1__init_schema.sql`): DONE (2026-09-12)** — see §6
+below and `memory/MEMORY.md`. Sections §7–§19 remain **GATED** — no
+domain/business-logic (Auth, Asset, Complaint, etc.) implementation has
+started; the schema alone does not implement any FR.
 
 ## 0. Project control & documentation
 - [ ] NOT STARTED — Review this control/documentation structure
@@ -33,6 +38,8 @@ domain/feature implementation has started.
   (university dates — PENDING faculty), **OQ-37** (rating scale), **OQ-38** residual
   (return-reason taxonomy / UI indicator), **OQ-39** (final org terminology),
   **OQ-40** (citizen recovery beyond staff-assisted), **OQ-41** (SLA target values),
+  **OQ-42** (citizen recovery request persistence — no entity defined in
+  DATA_MODEL.md for ADR-0007's pending-request step; found 2026-09-12),
   and the **map tile-provider / licensing** decision (AD-10 / ADR-0013).
 
 ## 1. Environment / prerequisite readiness  ← ACTIVE PHASE
@@ -150,9 +157,18 @@ Implementation §3–§19 unblocks only when this section is complete.)*
   filename match on "password" was `docs/decisions/0007-…-password-recovery-…`,
   a design-decision doc, not a credential). First commit **`6b689ff`** — "chore:
   baseline CAMS project documentation". Working tree clean; **no remote
-  configured** (GitHub setup intentionally not done — not requested). No
+  configured** (GitHub setup intentionally not done — not requested), as of
+  this step (2026-09-05). **Git note (current state, 2026-09-12):** this has
+  since changed — a GitHub `origin` remote is now configured and `main` is
+  synchronized with `origin/main` at `d53b9fc`. An earlier history rewrite
+  (which removed the Claude co-author attribution from early commits) replaced
+  the local history described above; the pre-rewrite history, including this
+  `6b689ff` commit, is preserved on the local branch
+  `backup-before-remove-claude`, kept intentionally as a safety branch. No
   application/database code included.
-- [ ] NOT STARTED — Confirm GitHub remote + workflow (only when explicitly requested)
+- [x] DONE (confirmed 2026-09-12) — GitHub remote `origin` is configured;
+  `main` is synchronized with `origin/main` at `d53b9fc` *(see Git note above —
+  date/actor of the original setup not recorded here)*
 - [x] DONE (2026-09-05) — **E7: Final environment readiness audit — READY WITH
   NON-BLOCKING WARNINGS.** Full re-verification of E1–E6, live end-to-end proof
   (not just version checks): Java 21 (Temurin) is `JAVA_HOME`, Java 24 preserved;
@@ -271,8 +287,59 @@ Implementation §3–§19 unblocks only when this section is complete.)*
 - [ ] NOT STARTED — Shared UI components (status chips, photo picker, on-device image compression)
 
 ## 6. Database
-- [ ] NOT STARTED — Physical schema design from `docs/architecture/DATA_MODEL.md`
-- [ ] NOT STARTED — Migration tooling (Flyway — ADR-0001) and baseline migration
+- [x] DONE (2026-09-12) — **Physical schema design from `docs/architecture/DATA_MODEL.md`
+  + Flyway baseline migration.** `backend/src/main/resources/db/migration/
+  V1__init_schema.sql` — translates DATA_MODEL.md §4 (entity catalog) and §8
+  (enumerations) directly into PostgreSQL DDL: all 17 MVP tables (`local_body`,
+  `village_municipality`, `ward`, `user_account`, `refresh_token`,
+  `asset_category`, `asset`, `asset_photo`, `complaint`, `complaint_photo`,
+  `complaint_status_history`, `worker_assignment`, `maintenance_history`,
+  `feedback`, `notification`, `audit_entry`, `media_object`) and 14 native
+  PostgreSQL enum types matching the D-number value sets **exactly**
+  (`complaint_status` = exactly D7's 7 values, no `RETURNED`; `asset_status`
+  D8; `asset_condition` D24 as an independent field; `role` D1; etc.).
+  Implements: org hierarchy per ADR-0004 (`local_body → village_municipality →
+  ward`, working names, OQ-39 untouched); denormalised `local_body_id` on
+  `asset`/`complaint` per DATA_MODEL §6; `(local_body_id, name)` uniqueness on
+  `village_municipality`/`asset_category`; one-active-`worker_assignment`-per-
+  complaint via a partial unique index; one-`feedback`-per-complaint and
+  one-`maintenance_history`-per-complaint via unique constraints; the
+  DATA_MODEL §11 indexes (asset scope+location, complaint scope/reported_by/
+  current_assignment, `worker_assignment(worker_id, active)`,
+  `complaint_status_history(complaint_id, occurred_at)`,
+  `notification(recipient_id, read_at)`, `audit_entry(occurred_at)` /
+  `(entity_type, entity_id)` / `(actor_id)`); circular FKs
+  (`local_body.created_by → user_account`, `complaint.current_assignment_id →
+  worker_assignment`) resolved via deferred `ALTER TABLE ... ADD CONSTRAINT`.
+  **Deliberately excluded** (per task scope / ADR-0007 / DATA_MODEL §9):
+  `citizen_recovery` (OQ-40 open; staff-assisted-only MVP default needs no
+  table), and all Inventory/Budget/SLA Secondary tables. `application.yml`:
+  `spring.flyway.enabled` → `true`; `spring.jpa.hibernate.ddl-auto` stays
+  `none`. `db/migration/README.md` updated to describe the new baseline.
+  **Verified against the real local `cams_dev` PostgreSQL 17.11 database**
+  (via the existing `pgpass.conf` mechanism — no credentials handled by this
+  session): `mvn compile` / `mvn test` → BUILD SUCCESS (1/1), Flyway applies
+  `V1__init_schema.sql` cleanly and `flyway_schema_history` records it
+  `success = t`; a second `mvn test` run shows Flyway validates and makes "no
+  migration necessary" (repeatable/idempotent); packaged jar started
+  standalone, `GET /health` → `200 {"status":"UP"}` with Flyway now enabled,
+  then stopped cleanly. `psql` catalog inspection confirmed: all 17 expected
+  tables + `flyway_schema_history` (18 total, nothing extra — Hibernate
+  created zero schema objects, `ddl-auto: none` holds); all 14 enum types with
+  the exact approved value sets; all 37 expected foreign keys (incl. both
+  circular ones); all unique/check constraints and all DATA_MODEL §11 indexes
+  present; **explicitly confirmed absent:** `citizen_recovery`,
+  `inventory_item`, `stock_movement`, `expenditure_entry`,
+  `budget_allocation`, `sla_target`. Implementation-style choices made where
+  the docs were silent (UUID PKs via `gen_random_uuid()`; native Postgres
+  ENUM types over varchar+check; `NUMERIC(12,2)` for `repair_cost`;
+  `completion_photo_ids` as a `UUID[]` array column; `feedback.rating_value`
+  has only a `>= 1` DB check, no upper bound, because the max is OQ-37-open
+  config) — see `memory/MEMORY.md` for the full list. No `docs/requirements/`
+  or `docs/decisions/` content changed.
+- [x] DONE (2026-09-12) — Migration tooling (Flyway — ADR-0001) and baseline
+  migration *(same entry as above — Flyway was already a dependency from the
+  Phase 1 skeleton; this task enabled it and supplied the first migration)*
 - [ ] NOT STARTED — Seed / reference data strategy (12 asset categories per local body, per D23)
 - [ ] NOT STARTED — Backup & restore scripts + runbook per ADR-0010; **run the
   pre-evaluation restore drill** and record it here (NFR-BAK-003)

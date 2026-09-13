@@ -45,3 +45,16 @@ sign-off and are recorded in `../../PLAN.md` §4. Preserved OPEN items:
 **OQ-14, OQ-17, OQ-25, OQ-36, OQ-37, OQ-38 (residual), OQ-39 (terminology), OQ-40,
 OQ-41** — plus the map tile-provider decision. Implementation is gated behind the
 environment / prerequisite readiness step (`../../TASKS.md` §1).
+
+**OQ-42** — **OPEN** (identified 2026-09-12, during the baseline-schema
+architecture review, after the 2026-09-04 sign-off): whether the approved
+staff-assisted citizen recovery flow (ADR-0007) requires **persisted
+recovery-request state**. `DATA_MODEL.md` defines no such entity for the
+pending-request step implied by `POST /auth/citizen/recovery/request` → staff
+`.../resolve`. Two options remain unresolved: **(A)** manual-only — no
+persisted request, the office/staff interaction itself is the "request"; **(B)**
+persist a recovery-request entity — which must first be defined in
+`DATA_MODEL.md` (entity, lifecycle, fields, security/retention rules,
+relationships) before Auth implementation. **Neither option is chosen; ADR-0007
+is not reinterpreted.** See `../requirements/REQUIREMENTS.md` §15.3 and
+`../../PLAN.md` §5.
