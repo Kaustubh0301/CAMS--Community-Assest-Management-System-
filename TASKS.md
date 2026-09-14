@@ -2,16 +2,19 @@
 
 **Status values:** NOT STARTED · IN PROGRESS · BLOCKED · DONE
 **Rule:** never mark a task DONE without corresponding code / tests / docs evidence.
-**Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
+**Last updated:** 2026-09-14 (JPA domain model cleanup pass — see §4)
 
 **Phase:** Requirements **BASELINED (v1.0)**; architecture **TEAM-APPROVED
 (2026-09-04)** — AD-01…AD-25 / ADRs 0001–0019. Environment / prerequisite
 readiness: **E1–E7 all PASS** — final audit (E7, 2026-09-05) classifies the
 environment **READY WITH NON-BLOCKING WARNINGS** (JDK 21, Maven, Flutter/Dart,
 Android SDK + live-tested emulator, PostgreSQL, Git repo baseline established
-at E6/E7 time). **Remaining, non-blocking:** Docker decision. **Current Git
-state (2026-09-12):** `main` is at `d53b9fc`, synchronized with the configured
-`origin` remote — see the Git note under E6 in §1 below.
+at E6/E7 time). **Remaining, non-blocking:** Docker decision. **Git
+milestones:** `d53b9fc` = CAMS project skeleton committed; `746ecd1` = CAMS
+baseline database schema committed (current `main`) — see the Git note under
+E6 in §1 below for the earlier history-rewrite background. The JPA domain
+model and its 2026-09-14 cleanup pass (§4) are both complete but
+**uncommitted**.
 **Implementation Phase 1 — project skeleton: DONE (2026-09-05, PASS WITH
 WARNINGS)** — `backend/` (Spring Boot 4.1.1 / Java 21) and `mobile/` (Flutter,
 Riverpod, Material 3) skeletons created and runnability-verified; **no business
@@ -158,17 +161,17 @@ Implementation §3–§19 unblocks only when this section is complete.)*
   a design-decision doc, not a credential). First commit **`6b689ff`** — "chore:
   baseline CAMS project documentation". Working tree clean; **no remote
   configured** (GitHub setup intentionally not done — not requested), as of
-  this step (2026-09-05). **Git note (current state, 2026-09-12):** this has
-  since changed — a GitHub `origin` remote is now configured and `main` is
-  synchronized with `origin/main` at `d53b9fc`. An earlier history rewrite
-  (which removed the Claude co-author attribution from early commits) replaced
-  the local history described above; the pre-rewrite history, including this
-  `6b689ff` commit, is preserved on the local branch
-  `backup-before-remove-claude`, kept intentionally as a safety branch. No
-  application/database code included.
-- [x] DONE (confirmed 2026-09-12) — GitHub remote `origin` is configured;
-  `main` is synchronized with `origin/main` at `d53b9fc` *(see Git note above —
-  date/actor of the original setup not recorded here)*
+  this step (2026-09-05). **Git note (history rewrite):** a GitHub `origin`
+  remote is configured and `main` has since advanced past this commit through
+  further commits (see the Git milestones note near the top of this
+  document). An earlier history rewrite (which removed the Claude co-author
+  attribution from early commits) replaced the local history described
+  above; the pre-rewrite history, including this `6b689ff` commit, is
+  preserved on the local branch `backup-before-remove-claude`, kept
+  intentionally as a safety branch. No application/database code included.
+- [x] DONE (confirmed 2026-09-12) — GitHub remote `origin` is configured
+  *(see the Git milestones note near the top of this document — date/actor of
+  the original setup not recorded here)*
 - [x] DONE (2026-09-05) — **E7: Final environment readiness audit — READY WITH
   NON-BLOCKING WARNINGS.** Full re-verification of E1–E6, live end-to-end proof
   (not just version checks): Java 21 (Temurin) is `JAVA_HOME`, Java 24 preserved;
@@ -252,8 +255,48 @@ Implementation §3–§19 unblocks only when this section is complete.)*
   skeleton" entry: the app genuinely connects to the real `cams_dev` DB at
   startup via the existing `pgpass.conf` mechanism, not via any credential
   supplied by this session.)*
-- [ ] NOT STARTED — Persistence layer setup
-- [ ] NOT STARTED — Domain model (per approved requirements)
+- [x] DONE (2026-09-13) — **Persistence layer setup: JPA domain model for the V1
+  schema.** One entity per V1 MVP table (17) in its owning module package
+  (SYSTEM_ARCHITECTURE §5); 14 Java enums mapped to the V1 native PostgreSQL
+  enum types; 17 package-private Spring Data repositories. Within-module FKs are
+  lazy `@ManyToOne`; cross-module FKs are plain UUID columns, because ADR-0002
+  forbids reading another module's tables. `audit_entry` and
+  `complaint_status_history` are `@Immutable` with save/find-only repositories
+  (ADR-0014, DATA_MODEL §4.4). V1 unchanged; `ddl-auto` stays `none`; no
+  services, controllers, auth, or workflows. **Verified 2026-09-13:** `mvn clean
+  package` → BUILD SUCCESS, 30/30 tests — including Hibernate `ddl-auto=validate`
+  against V1, Java↔PostgreSQL enum label equality, a rolled-back round-trip test
+  per module, and DB-constraint checks (second active assignment, rating 0,
+  second feedback all rejected). Hibernate emitted no DDL; `cams_dev` catalog and
+  row counts identical before and after (18 tables, 14 enums, 37 FKs, 50
+  indexes, 0 sequences, 1 Flyway row, 0 domain rows); packaged app on Java
+  21.0.12.1 → `GET /health` 200. Design choices listed in `memory/MEMORY.md`.
+- [x] DONE (2026-09-13) — Domain model (per approved requirements) *(persistence
+  mapping only — same entry as above; business rules and the complaint state
+  machine are not implemented)*
+- [x] DONE (2026-09-14) — **Cleanup pass on the JPA domain model**, addressing
+  findings from the independent architecture-review and verifier passes on
+  the 2026-09-13 milestone (both PASS WITH MINOR FINDINGS; no blockers).
+  `Feedback.ratingValue` (`int`→`Integer`) and `MediaObject.sizeBytes`
+  (`long`→`Long`) now use nullable Java wrappers, V1 columns unchanged (still
+  `NOT NULL`); `feedback.citizen_id` mapping is now `updatable = false`;
+  `FeedbackPersistenceTest` no longer edits feedback after save (FR-FEED-004)
+  and gained a `citizenIdIsNotUpdatedAfterInsert` test; the three
+  DB-constraint tests (`databaseRejectsRatingBelowOne`,
+  `databaseRejectsSecondFeedbackForTheSameComplaint`,
+  `databaseRejectsASecondActiveAssignmentForTheSameComplaint`) now assert the
+  exact PostgreSQL constraint name via a new
+  `PersistenceFixtures.constraintName(Throwable)` helper; `MaintenanceHistory
+  .getCompletionPhotoIds()` is null-element-safe; `common/package-info.java`
+  reworded to permit shared, behaviour-free domain enums (`Role`,
+  `EntityType`) without implying business logic; stale Git-state wording in
+  `PLAN.md`/`TASKS.md`/`memory/MEMORY.md` corrected. No V1, config, or
+  business-logic change. **Independently verified (2026-09-14):** `mvn clean
+  test` → BUILD SUCCESS, 14 test classes, **31 tests**, 0 failures, 0 errors,
+  0 skipped; **V1 SHA-256 unchanged**; `cams_dev` catalog and row counts
+  unchanged (18 tables, 14 enums, 37 FKs, 50 indexes, 0 sequences, 1 Flyway
+  row, 0 domain rows); `git diff --check` clean. **OQ-40 and OQ-42 remain
+  OPEN and unresolved.** See `memory/MEMORY.md`.
 - [ ] NOT STARTED — Error handling, validation, and logging conventions
 
 ## 5. Frontend  *(Flutter; Riverpod — AD-20/ADR-0018; fl_chart — AD-14/ADR-0015)*

@@ -15,13 +15,15 @@ see `TASKS.md` §3–§5 and `memory/MEMORY.md` for full detail. **Baseline
 PostgreSQL schema (Flyway `V1__init_schema.sql`): DONE (2026-09-12)** — the
 first backend feature; physical schema from `docs/architecture/DATA_MODEL.md`,
 verified against the real `cams_dev` database — see `TASKS.md` §6 and
-`memory/MEMORY.md`. Remaining, non-blocking: Docker decision. **Git (current,
-2026-09-12):** `main` is at `d53b9fc`, synchronized with the configured
-`origin` remote — see the Git note under the E6 record in §6 below for how
-this differs from the "no remote configured" state recorded at E6/E7 time.
-Domain/business-logic implementation (Auth, Asset, Complaint, etc.) stays
-gated until a specific feature task is started.
-**Last updated:** 2026-09-12 (baseline schema task — see §6; OQ-42 recorded — see §5)
+`memory/MEMORY.md`. Remaining, non-blocking: Docker decision. **Git
+milestones:** `d53b9fc` = CAMS project skeleton committed; `746ecd1` = CAMS
+baseline database schema committed (current `main`) — see the Git note under
+the E6 record in §6 below for the earlier history-rewrite background.
+**JPA domain model for V1 (persistence only): DONE (2026-09-13, uncommitted)**
+— see §6. **Cleanup pass on the JPA domain model: DONE (2026-09-14,
+uncommitted)** — see §6. Business-logic implementation (Auth, Asset,
+Complaint, etc.) stays gated until a specific feature task is started.
+**Last updated:** 2026-09-14 (JPA domain model cleanup pass — see §6)
 
 This document records the high-level plan. It separates **APPROVED** decisions from
 **PROPOSED** ones. Missing details are listed as open questions, not guessed;
@@ -237,13 +239,14 @@ specific deployment host; Git remote.
      **`6b689ff`** — "chore: baseline CAMS project documentation". Working tree
      clean; **no remote configured** (GitHub intentionally not set up — not
      requested), as of this step (2026-09-05).
-     **Git note (current state, 2026-09-12):** this has since changed — a
-     GitHub `origin` remote is now configured and `main` is synchronized with
-     `origin/main` at `d53b9fc`. An earlier history rewrite (which removed the
-     Claude co-author attribution from early commits) replaced the local
-     history described above; the pre-rewrite history, including this
-     `6b689ff` commit, is preserved on the local branch
-     `backup-before-remove-claude`, kept intentionally as a safety branch.
+     **Git note (history rewrite):** a GitHub `origin` remote is configured
+     and `main` has since advanced past this commit through further commits
+     (see the Git milestones note near the top of this document). An earlier
+     history rewrite (which removed the Claude co-author attribution from
+     early commits) replaced the local history described above; the
+     pre-rewrite history, including this `6b689ff` commit, is preserved on
+     the local branch `backup-before-remove-claude`, kept intentionally as a
+     safety branch.
    - **E7 ✅ PASS (2026-09-05) — Final environment readiness audit.**
      Re-verified E1–E6 end-to-end with live proof, not just version strings:
      Maven confirmed running on Java 21; `flutter doctor -v` Android toolchain
@@ -298,9 +301,35 @@ specific deployment host; Git remote.
      (`mvn test`, `psql` catalog inspection, `/health` with Flyway on). See
      `TASKS.md` §6 and `memory/MEMORY.md` for full detail. This is a schema
      foundation only — no Auth/Asset/Complaint business logic yet.
+   - ✅ **Done (2026-09-13) — JPA domain model for the V1 schema.** 17
+     entities, 14 enums, and 17 package-private repositories in the approved
+     module packages; cross-module references by UUID only (ADR-0002);
+     append-only entities `@Immutable` (ADR-0014). Verified: 30/30 tests,
+     including Hibernate `ddl-auto=validate` against V1; no schema or data
+     change in `cams_dev`; `/health` 200. Persistence only — no services,
+     controllers, auth, or workflows. See `TASKS.md` §4 and `memory/MEMORY.md`.
+   - ✅ **Done (2026-09-14) — Cleanup pass on the JPA domain model**,
+     addressing findings from the independent architecture-review and
+     verifier passes on the 2026-09-13 milestone (both PASS WITH MINOR
+     FINDINGS, no blockers). `Feedback.ratingValue` (`int`→`Integer`) and
+     `MediaObject.sizeBytes` (`long`→`Long`) now use nullable Java wrappers
+     while the V1 columns stay `NOT NULL`; `feedback.citizen_id` is now
+     `updatable = false`; the feedback persistence test no longer edits
+     feedback after save (FR-FEED-004) and a new test confirms `citizen_id`
+     immutability; the three DB-constraint tests now assert the exact
+     PostgreSQL constraint name that fired, not just the exception type;
+     `MaintenanceHistory.getCompletionPhotoIds()` is null-element-safe; the
+     `common` package doc was clarified to allow shared, behaviour-free
+     domain enums; stale Git-state wording in `PLAN.md`/`TASKS.md`/
+     `memory/MEMORY.md` was corrected. **`V1__init_schema.sql` byte-for-byte
+     unchanged; no database schema/catalog change.** **Independently verified
+     (2026-09-14):** 14 test classes, **31 tests**, 0 failures, 0 errors, 0
+     skipped. **OQ-40 and OQ-42 remain OPEN and unresolved.** See `TASKS.md`
+     §4 and `memory/MEMORY.md`.
 
 **Gate:** the environment / prerequisite readiness step and the Phase 1
-skeleton are both complete, and the baseline database schema now exists. No
+skeleton are both complete, and the baseline database schema and its JPA
+domain model now exist. No
 **feature/business-logic** implementation (authentication, assets, complaints,
 maps, maintenance, dashboards, reports, etc.) has started — that is the next
 gated step, one feature at a time.

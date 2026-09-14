@@ -1,7 +1,7 @@
 # CAMS — Memory Index
 
 Concise index of persistent project knowledge. Keep entries short; link out, do not
-duplicate. **Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
+duplicate. **Last updated:** 2026-09-14 (JPA domain model cleanup pass)
 
 ## Project state
 - Project: **CAMS** (Community Asset Management System), ~1-year university
@@ -14,11 +14,15 @@ duplicate. **Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
   (2026-09-05). **Implementation Phase 1 — project skeleton: DONE
   (2026-09-05)** — see "Phase 1 skeleton" entry below. **First backend
   feature — baseline PostgreSQL schema: DONE (2026-09-12)** — see "Baseline
-  schema" entry below. No Auth/Asset/Complaint business logic implemented
-  yet. Only Docker (optional) remains outstanding, non-blocking, in
-  `../TASKS.md` §1. **Git (current, 2026-09-12):** `main` is at `d53b9fc`,
-  synchronized with the configured `origin` remote — see the Git note under
-  "E6 PASS" below.
+  schema" entry below. **JPA domain model for V1: DONE (2026-09-13)**, with a
+  **cleanup pass: DONE (2026-09-14)** — see "JPA domain model" and "JPA
+  domain model cleanup pass" entries below. No Auth/Asset/Complaint business
+  logic implemented yet. Only Docker (optional) remains outstanding,
+  non-blocking, in `../TASKS.md` §1. **Git milestones:** `d53b9fc` = CAMS
+  project skeleton committed; `746ecd1` = CAMS baseline database schema
+  committed (current `main`) — see the Git note under "E6 PASS" below for the
+  earlier history-rewrite background. The JPA domain model and its cleanup
+  pass are both complete but **uncommitted**.
 - **Requirements baseline:** `../docs/requirements/REQUIREMENTS.md` **v1.0**
   (D1–D37; register in §1). **Unchanged by the architecture work.** Open items in
   §15.3 / `../PLAN.md` §5.
@@ -190,13 +194,13 @@ duplicate. **Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
   inspected before committing: no passwords/tokens/keys/pgpass/binaries staged.
   Working tree clean; **no remote configured** — GitHub setup intentionally not
   done (not requested), as of this step (2026-09-05).
-  **Git note (current state, 2026-09-12):** this has since changed — a GitHub
-  `origin` remote is now configured and `main` is synchronized with
-  `origin/main` at `d53b9fc`. An earlier history rewrite (which removed the
-  Claude co-author attribution from early commits) replaced the local history
-  described above; the pre-rewrite history, including this `6b689ff` commit,
-  is preserved on the local branch `backup-before-remove-claude`, kept
-  intentionally as a safety branch.
+  **Git note (history rewrite):** a GitHub `origin` remote is configured and
+  `main` has since advanced past this commit through further commits (see
+  the Git milestones note near the top of this document). An earlier history
+  rewrite (which removed the Claude co-author attribution from early commits)
+  replaced the local history described above; the pre-rewrite history,
+  including this `6b689ff` commit, is preserved on the local branch
+  `backup-before-remove-claude`, kept intentionally as a safety branch.
 - **E7 PASS — Final environment readiness audit (2026-09-05).** Re-verified
   E1–E6 with live evidence, not just `--version` strings: Maven confirmed
   actually running on JDK 21; `flutter doctor -v` → Android toolchain **[√]**;
@@ -492,6 +496,109 @@ duplicate. **Last updated:** 2026-09-12 (baseline schema task; OQ-42 recorded)
   skeleton state unchanged on the Java side). `docs/requirements/` and
   `docs/decisions/` were **not** touched (out of scope for an implementation
   task per the task instructions).
+
+## JPA domain model (implementation, 2026-09-13) — persistence only, PASS
+- **What:** one JPA entity per V1 MVP table (17) in its owning module package
+  (SYSTEM_ARCHITECTURE §5); 14 Java enums mapped to the V1 native enum types with
+  `@Enumerated(STRING)` + `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` + a
+  `columnDefinition` naming the PostgreSQL type (without it Hibernate validation
+  would not match names like `complaint_status`); 17 package-private Spring Data
+  repositories. `Role` and `EntityType` are shared by several modules, so they
+  live in `common.domain`. No V1, config, service, controller, auth, or workflow
+  changes.
+- **Design choices (for review):**
+  - Within-module FKs → lazy `@ManyToOne` (9). Cross-module FKs → plain `UUID`
+    columns (28): ADR-0002 forbids reading another module's tables, and a lazy
+    association would do exactly that. V1's FK constraints still enforce integrity.
+  - Repositories are package-private, so other modules cannot use them — cheap
+    AD-02 enforcement. The ArchUnit task (`../TASKS.md` §2) is still open.
+  - `audit_entry` and `complaint_status_history` are `@Immutable` and
+    constructor-only; their repositories expose only `save`/`findById`
+    (ADR-0014, DATA_MODEL §4.4). Feedback's "not editable" rule (FR-FEED-004) is
+    left to the future Feedback service.
+  - UUID PKs are generated by Hibernate (`GenerationType.UUID`), not by the V1
+    `gen_random_uuid()` default. V1 column defaults are mirrored as Java field
+    initialisers. Creation timestamps use `@CreationTimestamp`; `updated_at` uses
+    `@UpdateTimestamp` (server JVM clock, set on insert and update).
+  - Creator/creation columns are `updatable = false`. Indexes and unique
+    constraints are **not** repeated in JPA annotations (DDL-only metadata, inert
+    with `ddl-auto: none`); V1 stays the single source.
+  - Types: `completion_photo_ids` → `List<UUID>` (`SqlTypes.ARRAY`);
+    `body_params` → raw JSON `String` (`SqlTypes.JSON`, jsonb); money and
+    coordinates → `BigDecimal`; timestamptz → `Instant`; DATE → `LocalDate`.
+  - No `equals`/`hashCode`/`toString` overrides, so `password_hash` and
+    `token_hash` cannot leak through `toString()`.
+- **Tests:** 13 new test classes, 29 new tests (30 with the skeleton test), all
+  `@DataJpaTest` against the real `cams_dev` (no embedded DB — V1 needs
+  PostgreSQL enums), every test rolled back. `JpaSchemaValidationTest` (Hibernate
+  `validate` + exactly the 17 tables); `JpaSchemaGenerationDisabledTest` (Spring
+  Boot omits `hibernate.hbm2ddl.auto` entirely when `ddl-auto` is `none` —
+  confirmed from the failure output of the first test version — so the test
+  accepts absent or `none`); `EnumMappingConsistencyTest` (Java labels = `pg_enum`
+  labels in order for all 14 types; no `RETURNED`); one round-trip test per
+  module; DB-constraint checks (second active assignment, rating 0, second
+  feedback rejected).
+- **Evidence (2026-09-13):** `mvn clean package` → BUILD SUCCESS, 30/30, 0 compiler
+  warnings on CAMS sources. Hibernate logged 179 inserts / 6 updates and 0 DDL.
+  Flyway only validated ("up to date") in every context. `cams_dev` identical
+  before tests, after tests, and after the app run: 18 tables, 14 enums, 37 FKs,
+  50 indexes, 0 sequences, 1 Flyway row (checksum 1057116902), 0 rows in all 17
+  tables. Packaged jar on Java 21.0.12.1 → `GET /health` 200 `{"status":"UP"}`,
+  then stopped. V1 SHA-256 unchanged.
+
+## JPA domain model cleanup pass (implementation, 2026-09-14) — PASS
+- **Why:** findings from the independent `cams-architecture-reviewer` and
+  `cams-verifier` passes on the 2026-09-13 JPA domain model milestone (both
+  **PASS WITH MINOR FINDINGS** — nothing was a blocker).
+- **Changes:**
+  - `Feedback.ratingValue`: `int` → `Integer`; `MediaObject.sizeBytes`:
+    `long` → `Long`. The underlying `feedback.rating_value` /
+    `media_object.size_bytes` columns remain `NOT NULL` in V1 — only the
+    Java field type changed, so an unset value now fails fast instead of
+    silently persisting as `0`.
+  - `feedback.citizen_id` mapping gained `updatable = false`. Confirmed at
+    runtime: changing `citizenId` on a loaded, managed `Feedback` and
+    flushing produces **no** `UPDATE feedback` statement at all.
+  - `FeedbackPersistenceTest.persistsRatingAndOneTimeText` no longer edits
+    the feedback after `save()` (that contradicted FR-FEED-004 — feedback is
+    not editable); a new test, `citizenIdIsNotUpdatedAfterInsert`, verifies
+    the `updatable = false` mapping above.
+  - The three DB-constraint tests (`databaseRejectsRatingBelowOne`,
+    `databaseRejectsSecondFeedbackForTheSameComplaint`,
+    `databaseRejectsASecondActiveAssignmentForTheSameComplaint`) now assert
+    the exact PostgreSQL constraint name that fired
+    (`chk_feedback_rating_value_min`, `uq_feedback_complaint`,
+    `uq_worker_assignment_one_active_per_complaint`), via a new
+    `PersistenceFixtures.constraintName(Throwable)` helper that walks the
+    exception cause chain to the underlying `PSQLException` and reads
+    `getServerErrorMessage().getConstraint()` — not just the exception type.
+  - `MaintenanceHistory.getCompletionPhotoIds()` changed from
+    `List.copyOf(...)` (throws on a null element) to
+    `Collections.unmodifiableList(new ArrayList<>(...))` (null-element-safe,
+    still returns an unmodifiable copy).
+  - `common/package-info.java` reworded to state explicitly that the package
+    may hold small, behaviour-free shared domain enums (`Role`,
+    `EntityType`, already in `common.domain` since the 2026-09-13 milestone)
+    alongside plumbing, without that being business logic. Neither enum was
+    moved.
+  - Stale Git-state wording in `PLAN.md`, `TASKS.md`, and this file
+    (statements asserting "`main` is at `d53b9fc`") replaced with a
+    milestone-based record (`d53b9fc` = skeleton, `746ecd1` = baseline
+    schema) that doesn't go stale on the next commit.
+  - No V1, `application.yml`, `pom.xml`, service, controller, auth, or
+    workflow change.
+- **Independently verified (2026-09-14, by a separate `cams-verifier`
+  pass):** `mvn -B clean test` → BUILD SUCCESS, **14 test classes, 31 tests,
+  0 failures, 0 errors, 0 skipped** (the prior 30 plus
+  `citizenIdIsNotUpdatedAfterInsert`); the three strengthened constraint
+  tests' asserted constraint names were confirmed present verbatim in the
+  PostgreSQL error log; `V1__init_schema.sql` confirmed byte-for-byte
+  unchanged (git hash and SHA-256 both match HEAD); `cams_dev` catalog and
+  row counts identical before/after (18 tables, 14 enums, 37 FKs, 50
+  indexes, 0 sequences, 1 Flyway row checksum 1057116902, 0 rows in all 17
+  domain tables); no DDL in any log; `git diff --check` clean; no
+  commit/push occurred. **OQ-40 and OQ-42 remain OPEN and unresolved** —
+  nothing in this pass decided either.
 
 ## Where to look
 - `../CLAUDE.md` — how to operate on this project.
